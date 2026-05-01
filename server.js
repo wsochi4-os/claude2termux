@@ -3,13 +3,18 @@ const http = require('http');
 const express = require('express');
 const WebSocket = require('ws');
 const crypto = require('crypto');
+const cors = require('cors');
 
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'change-me-admin-token';
 const AGENT_SECRET = process.env.AGENT_SECRET || 'change-me-agent-secret';
 const PORT = process.env.PORT || 8080;
 
 const app = express();
+app.use(cors());
 app.use(express.json({limit: '2mb'}));
+
+// Serve web UI under /ui
+app.use('/ui', express.static('public'));
 
 // ws clients: clientId => ws
 const wsClients = new Map();
