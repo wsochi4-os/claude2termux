@@ -1,15 +1,24 @@
-Superpowers — Termux reverse-WebSocket bridge
+Superpowers — Termux-friendly reverse bridge (HTTP long-poll)
 
 Overview
-1) Run the Node.js server on a publicly reachable host (or behind a TLS proxy).
-2) Run the agent (agent.py) on Termux; it opens an outbound websocket to the server.
-3) Use the HTTP API (/api/exec) with an ADMIN_TOKEN to send commands to the Termux client and receive outputs.
+This version uses HTTP long-polling so Termux (no special libs) can poll for commands and post back results using curl. No Docker required on Termux.
 
-Quick start
-- On server: export ADMIN_TOKEN=your_admin_token AGENT_SECRET=your_agent_secret PORT=8080 && npm install && node server.js
-- On Termux: pkg install python && pip install websockets && export SERVER="ws://your-server:8080" CLIENT_ID="termux-1" AGENT_SECRET="your_agent_secret" && python3 agent.py
+Server (public host)
+- Set ADMIN_TOKEN and AGENT_SECRET env vars.
+- npm install && node server.js
+- Endpoints:
+  - POST /api/exec (admin) {client_id, cmd} waits for result
+  - POST /api/send (admin) {client_id, cmd} enqueue only
+  - GET /api/fetch/:id (admin) fetch outputs
+  - GET /api/poll?client_id=... (agent) long-poll for commands
+  - POST /api/result (agent) post outputs
+
+Termux agent (no Python required)
+- On Termux: pkg install curl coreutils
+- Edit agent.sh: set SERVER, CLIENT_ID, AGENT_SECRET
+- Start: ./agent.sh & or use Termux:Boot/Termux:Widget to run
 
 Security
-- Keep ADMIN_TOKEN and AGENT_SECRET secret. Use TLS in production (wss://) and strong tokens.
+- Use HTTPS for SERVER (recommended).
+- Keep ADMIN_TOKEN and AGENT_SECRET secret.
 
-This repo contains a minimal PoC. Adapt for your use-case (authentication, encryption, streaming, file transfer, rate-limiting).
