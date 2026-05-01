@@ -1,5 +1,5 @@
 {
-  "name": "superpowers",
+  "name": "claude2termux",
   "version": "0.1.0",
   "description": "Reverse-WebSocket bridge for Termux (agent) and cloud controller",
   "main": "server.js",
