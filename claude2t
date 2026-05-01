@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+set -e
+# claude2t — convenience CLI to manage the claude2termux server
+# Usage: claude2t start|start-daemon|stop|status
+
+ENV_FILE=.env
+PIDFILE=./claude2t.pid
+
+if [ ! -f "$ENV_FILE" ]; then
+  cat > "$ENV_FILE" <<'EOF'
+# claude2termux .env sample
+# IMPORTANT: replace the tokens below with long random secrets before use
+ADMIN_TOKEN=change-me-admin-token
+AGENT_SECRET=change-me-agent-secret
+PORT=8080
+# Optional TLS files for HTTPS
+# TLS_CERT=/path/to/fullchain.pem
+# TLS_KEY=/path/to/privkey.pem
+# Data directory for logs and keys
+# DATA_DIR=./data
+EOF
+  echo "Created sample $ENV_FILE — edit it and set ADMIN_TOKEN and AGENT_SECRET, then run: claude2t start"
+  exit 0
+fi
+
+case "$1" in
+  start)
+    echo "Starting claude2termux (foreground)..."
+    # dotenv is loaded via node -r dotenv/config; server.js uses process.env
+    node -r dotenv/config server.js
+    ;;
+  start-daemon)
+    echo "Starting claude2termux (background)..."
+    nohup node -r dotenv/config server.js > /dev/null 2>&1 &
+    echo $! > "$PIDFILE"
+    echo "Started (pid $(cat $PIDFILE))"
+    ;;
+  stop)
+    if [ -f "$PIDFILE" ]; then
+      PID=$(cat "$PIDFILE")
+      echo "Stopping pid $PID"
+      kill "$PID" || echo "Failed to kill $PID"
+      rm -f "$PIDFILE"
+    else
+      echo "No pid file ($PIDFILE) found. Server may not be running or was started in foreground."
+    fi
+    ;;
+  status)
+    if [ -f "$PIDFILE" ]; then
+      ps -p $(cat "$PIDFILE") -o pid,cmd
+    else
+      echo "Not running (no pid file)."
+    fi
+    ;;
+  *)
+    echo "Usage: $0 {start|start-daemon|stop|status}"
+    exit 1
+    ;;
+esac
