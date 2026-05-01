@@ -1,46 +1,54 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>claude2termux — Controller UI</title>
-  <link rel="stylesheet" href="/ui/style.css">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>C2T | Termux Remote</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 </head>
-<body>
-  <div class="container">
-    <h1>claude2termux</h1>
-    <div id="login" class="card">
-      <label>Admin token</label>
-      <input id="token" type="password" placeholder="Enter ADMIN_TOKEN" />
-      <button id="save-token">Save token</button>
-    </div>
-
-    <div id="main" style="display:none">
-      <div class="card">
-        <label>Client ID</label>
-        <select id="clients"></select>
-        <button id="refresh">Refresh clients</button>
-      </div>
-
-      <div class="card">
-        <label>Command</label>
-        <textarea id="cmd" rows="3" placeholder="Enter shell command"></textarea>
-        <div class="row">
-          <button id="send">Send & wait</button>
-          <button id="send-no-wait">Send (no-wait)</button>
+<body class="cyberpunk">
+    <div id="login" class="panel">
+        <div class="header">
+            <span class="glitch" data-text="AUTH_REQUIRED">AUTH_REQUIRED</span>
         </div>
-      </div>
-
-      <div class="card">
-        <h3>Output</h3>
-        <pre id="output"></pre>
-      </div>
-
-      <div class="card small">
-        <p>Tip: Token is stored in browser localStorage. This UI is for testing; secure it before public use.</p>
-      </div>
+        <div class="content">
+            <input type="password" id="token" placeholder="ENTER ADMIN_TOKEN">
+            <button id="save-token">CONNECT</button>
+        </div>
     </div>
-  </div>
-  <script src="/ui/app.js"></script>
+
+    <div id="main" style="display:none;">
+        <nav class="top-bar">
+            <div class="logo">C2T_SYSTEM_v0.2</div>
+            <div class="status-group">
+                <select id="clients"></select>
+                <button id="refresh" class="icon-btn">↻</button>
+            </div>
+        </nav>
+
+        <div class="terminal-container">
+            <div id="output" class="terminal-log">
+                <div class="line system">SYSTEM_READY...</div>
+                <div class="line">Awaiting command injection.</div>
+            </div>
+        </div>
+
+        <div class="controls panel">
+            <div class="quick-actions">
+                <button onclick="quickCmd('ls -la')">LS</button>
+                <button onclick="quickCmd('top -n 1')">TOP</button>
+                <button onclick="quickCmd('pkg upgrade')">UPGRADE</button>
+                <button onclick="quickCmd('termux-vibrate')">VIBE</button>
+                <button onclick="clearOutput()" class="danger">CLEAR</button>
+            </div>
+            <div class="input-area">
+                <span class="prompt">λ</span>
+                <input type="text" id="cmd" placeholder="Execute command..." autocomplete="off">
+                <button id="send">EXEC</button>
+            </div>
+        </div>
+    </div>
+    <script src="app.js"></script>
 </body>
 </html>
