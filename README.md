@@ -50,6 +50,11 @@ bash agent.sh
 
 ## 🛠 Usage (The "MCP" Experience)
 
+### 📱 Connecting to Claude Android App (Artifacts)
+To control Termux from your Claude Android app, copy and paste this prompt into a new chat once your server is running:
+
+> "Create a React Artifact that acts as a 'Termux Remote Dashboard'. It should connect to my server at `{YOUR_SERVER_URL}`. Include a field for my `ADMIN_TOKEN`. The UI should have a command input, a terminal output area, and quick-action buttons for 'ls', 'top', and 'pkg upgrade'. Style it with a dark 'Termux' aesthetic. Ensure it sends commands via POST to `/api/exec` with the Bearer token header."
+
 ### Send a Command via CLI
 ```bash
 curl -X POST https://your-server-url/api/exec \
