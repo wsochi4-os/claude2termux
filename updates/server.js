@@ -12,13 +12,13 @@ const Anthropic = require('@anthropic-ai/sdk');
 
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || 'change-me-admin-token';
 const AGENT_SECRET = process.env.AGENT_SECRET || 'change-me-agent-secret';
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
 const PORT = process.env.PORT || 8080;
 const TLS_CERT = process.env.TLS_CERT || '';
 const TLS_KEY = process.env.TLS_KEY || '';
 const DATA_DIR = process.env.DATA_DIR || './data';
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY || '';
-const CHAT_MODEL = process.env.CHAT_MODEL || 'claude-3-5-sonnet-20240620';
-const CHAT_MAX_TURNS = parseInt(process.env.CHAT_MAX_TURNS || '10');
+const CHAT_MODEL = 'claude-sonnet-4-20250514';
+const CHAT_MAX_TURNS = 10;
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 const CLIENTS_FILE = DATA_DIR + '/clients.json';
@@ -33,19 +33,14 @@ app.use(require('cors')({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-agent-secret']
 }));
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" }
-}));
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(express.json({limit: '2mb'}));
 app.use(morgan('combined', {stream: fs.createWriteStream(DATA_DIR + '/access.log', {flags:'a'})}));
 
-// Rate limiting for admin endpoints
 const adminLimiter = rateLimit({ windowMs: 30*1000, max: 30 });
 
-// Serve UI
 app.use('/ui', express.static('public'));
 
-// in-memory structures
 const wsClients = new Map();
 const pending = new Map();
 const results = new Map();
@@ -69,10 +64,10 @@ function enqueueCommand(clientId, cmd, auditMeta){
   return execId;
 }
 
-// ── Admin Endpoints ──────────────────────────────────────────────────────────
+// ── Existing routes ────────────────────────────────────────────────────────
 
 app.post('/api/client', adminLimiter, (req, res) => {
-  const token = (req.headers['authorization'] || '').replace('Bearer ', '');
+  const token = req.headers['authorization'] ? req.headers['authorization'].replace('Bearer ', '') : null;
   if (token !== ADMIN_TOKEN) return res.status(403).json({ error: 'unauthorized' });
   const { client_id, key } = req.body;
   if (!client_id || !key) return res.status(400).json({ error: 'client_id and key required' });
@@ -83,27 +78,29 @@ app.post('/api/client', adminLimiter, (req, res) => {
 });
 
 app.post('/api/exec', adminLimiter, (req, res) => {
-  const token = (req.headers['authorization'] || '').replace('Bearer ', '');
+  const token = req.headers['authorization'] ? req.headers['authorization'].replace('Bearer ', '') : null;
   if (token !== ADMIN_TOKEN) return res.status(403).json({ error: 'unauthorized' });
   const { client_id, cmd, timeout = 30000 } = req.body;
   if (!client_id || !cmd) return res.status(400).json({ error: 'client_id and cmd required' });
   const execId = enqueueCommand(client_id, cmd, { by: 'admin' });
   results.set(execId, []);
-  
-  waitForResult(execId, timeout).then(output => {
-    res.json({ id: execId, outputs: results.get(execId) });
-  });
+  const start = Date.now();
+  (function waitForExit(){
+    const chunks = results.get(execId) || [];
+    const foundExit = chunks.find(c => c.type === 'exit' && c.id === execId);
+    if (foundExit) return res.json({ id: execId, outputs: chunks });
+    if (Date.now() - start > timeout) return res.status(504).json({ error: 'timeout', outputs: chunks });
+    setTimeout(waitForExit, 200);
+  })();
 });
 
 app.post('/api/send', adminLimiter, (req, res)=>{
-  const token = (req.headers['authorization'] || '').replace('Bearer ', '');
+  const token = req.headers['authorization'] ? req.headers['authorization'].replace('Bearer ', '') : null;
   if (token !== ADMIN_TOKEN) return res.status(403).json({ error: 'unauthorized' });
   const { client_id, cmd } = req.body; if (!client_id||!cmd) return res.status(400).json({ error:'client_id and cmd required' });
   const execId = enqueueCommand(client_id, cmd, { by: 'admin-send' });
   res.json({ id: execId });
 });
-
-// ── Agent Endpoints ──────────────────────────────────────────────────────────
 
 app.get('/api/poll', (req, res) => {
   const secret = req.headers['x-agent-secret'] || (req.headers['authorization'] ? req.headers['authorization'].replace('Bearer ', '') : null);
@@ -119,14 +116,8 @@ app.get('/api/poll', (req, res) => {
 app.post('/api/result', (req, res)=>{
   const secret = req.headers['x-agent-secret'] || (req.headers['authorization'] ? req.headers['authorization'].replace('Bearer ', '') : null);
   if (secret !== AGENT_SECRET) return res.status(403).json({ error: 'unauthorized' });
-  let { id, client_id, stdout, stderr, code, type } = req.body;
+  const { id, client_id, stdout, stderr, code, type } = req.body;
   if (!id || !client_id) return res.status(400).json({ error: 'id and client_id required' });
-
-  // Attempt to decode base64 stdout if it looks like it
-  if (stdout && /^[A-Za-z0-9+/=]+$/.test(stdout)) {
-    try { stdout = Buffer.from(stdout, 'base64').toString('utf8'); } catch(e) {}
-  }
-
   if (!results.has(id)) results.set(id, []);
   const entry = { id, client_id, type: type || (code!==undefined?'exit':'output'), stdout, stderr, code, time: new Date().toISOString() };
   results.get(id).push(entry);
@@ -134,8 +125,23 @@ app.post('/api/result', (req, res)=>{
   return res.json({ ok: true });
 });
 
+app.get('/api/fetch/:id', (req,res)=>{ const token = req.headers['authorization']?req.headers['authorization'].replace('Bearer ',''):null; if(token!==ADMIN_TOKEN) return res.status(403).json({error:'unauthorized'}); const id=req.params.id; res.json({id, outputs: results.get(id)||[]}); });
+
+app.get('/api/clients', (req,res)=>{ const clients = loadClients(); res.json({ ws_clients: Array.from(wsClients.keys()), queued_clients: Array.from(pending.keys()), registered_clients: Object.keys(clients) }); });
+
+app.get('/api/audit', (req,res)=>{ const token=req.headers['authorization']?req.headers['authorization'].replace('Bearer ',''):null; if(token!==ADMIN_TOKEN) return res.status(403).json({error:'unauthorized'}); const lines = fs.existsSync(DATA_DIR + '/audit.log')?fs.readFileSync(DATA_DIR + '/audit.log','utf8').trim().split('\n').slice(-200):[]; res.json(lines.map(l=>JSON.parse(l))); });
+
 // ── Agentic Chat ───────────────────────────────────────────────────────────
 
+/**
+ * POST /api/chat
+ * Body: { message: string, client_id: string, history?: array }
+ * Auth: Bearer ADMIN_TOKEN
+ *
+ * Claude receives the message and can call run_command to execute real shell
+ * commands on the Termux device. Returns Claude's final text response plus
+ * the updated conversation history for multi-turn use.
+ */
 app.post('/api/chat', adminLimiter, async (req, res) => {
   const token = (req.headers['authorization'] || '').replace('Bearer ', '');
   if (token !== ADMIN_TOKEN) return res.status(403).json({ error: 'unauthorized' });
@@ -235,8 +241,10 @@ app.post('/api/chat', adminLimiter, async (req, res) => {
   }
 });
 
-// ── Utility ──────────────────────────────────────────────────────────────────
-
+/**
+ * Waits for a command result to appear in the results map.
+ * Resolves with { text, code } when the agent posts an exit chunk.
+ */
 function waitForResult(execId, timeoutMs) {
   return new Promise((resolve) => {
     const start = Date.now();
@@ -261,11 +269,7 @@ function waitForResult(execId, timeoutMs) {
   });
 }
 
-app.get('/api/fetch/:id', (req,res)=>{ const token = (req.headers['authorization'] || '').replace('Bearer ', ''); if(token!==ADMIN_TOKEN) return res.status(403).json({error:'unauthorized'}); const id=req.params.id; res.json({id, outputs: results.get(id)||[]}); });
-
-app.get('/api/clients', (req,res)=>{ const clients = loadClients(); res.json({ ws_clients: Array.from(wsClients.keys()), queued_clients: Array.from(pending.keys()), registered_clients: Object.keys(clients) }); });
-
-app.get('/api/audit', (req,res)=>{ const token=(req.headers['authorization'] || '').replace('Bearer ', ''); if(token!==ADMIN_TOKEN) return res.status(403).json({error:'unauthorized'}); const lines = fs.existsSync(DATA_DIR + '/audit.log')?fs.readFileSync(DATA_DIR + '/audit.log','utf8').trim().split('\n').slice(-200):[]; res.json(lines.map(l=>JSON.parse(l))); });
+// ── WebSocket + server bootstrap ───────────────────────────────────────────
 
 let server;
 if (TLS_CERT && TLS_KEY && fs.existsSync(TLS_CERT) && fs.existsSync(TLS_KEY)){

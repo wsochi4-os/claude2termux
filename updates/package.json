@@ -3,11 +3,11 @@
   "version": "0.2.0",
   "description": "Reverse-WebSocket bridge for Termux (agent) and cloud controller, with agentic Claude chat",
   "main": "server.js",
-  "bin": {
-    "claude2t": "./claude2t"
-  },
   "scripts": {
     "start": "node server.js"
+  },
+  "bin": {
+    "claude2t": "./claude2t"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.0",
