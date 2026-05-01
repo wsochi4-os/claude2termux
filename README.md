@@ -1,79 +1,73 @@
-# claude2termux — Control Termux from Claude (Android)
+# Claude2Termux 🚀
+**Bridge the gap between your LLM and your Android environment.**
 
-A minimal, Termux-friendly bridge that lets a cloud controller (e.g., Claude Android app) send shell commands to Termux devices. Termux polls the server (long-poll), runs commands locally, and returns base64-encoded results.
+Claude2Termux is a reverse-proxy bridge that allows cloud-based LLMs (like Claude, Gemini, or GPT-4) to execute commands directly inside your Termux terminal. It provides an MCP-like (Model Context Protocol) interface, allowing an AI to treat your phone as its local execution environment.
 
-Quick start (ELI16)
-1. Pick secrets and a host
-   - ADMIN_TOKEN (server admin) — keep secret
-   - AGENT_SECRET (agent auth) — keep secret
-   - Choose HOST (your VPS or a tunnel URL from Cloudflare Tunnel)
+## 🏗️ How it Works
+1.  **Agent (Termux)**: A lightweight polling script (Python or Bash) runs on your phone. It reaches out to the server and waits for commands.
+2.  **Server (Cloud)**: An Express.js gateway (typically hosted behind a Cloudflare Tunnel or VPS). It holds a queue of commands for the phone and routes results back to the caller.
+3.  **Controller (LLM/You)**: You or an AI agent sends commands to the Server API. The server pipes them to Termux, and the output flows back to the AI for reasoning.
 
-2. On the server (VPS)
-   - Clone the repo and install: npm install
-   - Create a .env or export env vars:
-     ADMIN_TOKEN="<long-secret>"
-     AGENT_SECRET="<long-secret>"
-     PORT=8080
-   - Start server (foreground): ./claude2t start
-     or background: ./claude2t start-daemon
+## 📦 Installation
 
-3. Register a per-client key (server-side)
-   - Create a per-device CLIENT_KEY (random string) and register it:
-     curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
-       -d '{"client_id":"termux-phone","key":"<CLIENT_KEY>"}' https://$HOST/api/client
+### 1. Server Setup (VPS or Cloud)
+```bash
+git clone https://github.com/wsochi4-os/claude2termux
+cd claude2termux
+npm install
 
-4. On Termux (your Android device)
-   - Install: pkg update && pkg install curl openssl coreutils -y
-   - Copy agent.sh to Termux and set env vars:
-     export SERVER="https://$HOST"
-     export CLIENT_ID="termux-phone"
-     export AGENT_SECRET="<AGENT_SECRET>"
-     export CLIENT_KEY="<CLIENT_KEY>"
-   - Run agent:
-     chmod +x agent.sh
-     ./agent.sh &
+# Configure your secrets
+cp .env.example .env 
+# Edit .env with your ADMIN_TOKEN, AGENT_SECRET, and DATA_DIR
 
-5. Send commands (from phone / Claude / web UI)
-   - Use the web UI: https://$HOST/ui (enter ADMIN_TOKEN)
-   - Or CURL / HTTP shortcut: POST https://$HOST/api/exec
-     Headers: Authorization: Bearer <ADMIN_TOKEN>
-     Body: {"client_id":"termux-phone","cmd":"ls -la"}
+npm start
+```
 
-6. Read outputs
-   - Server returns id and outputs array with base64 stdout/stderr. Decode with:
-     echo "BASE64" | base64 -d
+### 2. Termux Setup (The Agent)
+In your Termux terminal:
 
-Cloudflare Tunnel (quick)
-- Quick ephemeral (no account): run:
-  cloudflared tunnel --url http://localhost:8080
-  — you get a https://*.trycloudflare.com URL immediately.
+**Option A: Python Agent (Recommended)**
+```bash
+pkg install python requests
+export SERVER="https://your-server-url"
+export CLIENT_ID="termux-main"
+export AGENT_SECRET="your_secure_agent_secret"
+export CLIENT_KEY="your_client_hmac_key"
 
-- Persistent hostname (recommended):
-  1) cloudflared login
-  2) cloudflared tunnel create <NAME>
-  3) cloudflared tunnel route dns <NAME> <HOSTNAME>
-  4) Use .cloudflared/config.yml and systemd/cloudflared.service to run persistently (see repo files)
+python agent_new.py
+```
 
-Security notes
-- Use HTTPS (Cloudflare Tunnel or TLS certs).
-- ADMIN_TOKEN and AGENT_SECRET must be strong and kept secret.
-- Register per-client CLIENT_KEY and keep it on the device only.
-- Review logs (data/) and rotate keys regularly.
+**Option B: Bash Agent**
+```bash
+pkg install curl openssl
+export SERVER="https://your-server-url"
+export CLIENT_ID="termux-main"
+export AGENT_SECRET="your_secure_agent_secret"
+export CLIENT_KEY="your_client_hmac_key"
 
-Troubleshooting (quick)
-- Agent not connecting: verify SERVER URL, AGENT_SECRET, and network.
-- /api/exec times out: check agent logs and server data/results.log.
-- Outputs unreadable: decode base64.
+bash agent.sh
+```
 
-Files of interest
-- server.js — server implementation
-- agent.sh — Termux agent (HMAC verify)
-- public/ — web UI (visit /ui)
-- claude2t — start/stop helper
-- systemd/claude2termux.service — systemd template
-- .cloudflared/config.yml & systemd/cloudflared.service — cloudflared templates
+## 🛠 Usage (The "MCP" Experience)
 
-If you want, I can:
-- Populate cloudflared config with your hostname, or
-- Add a small admin UI auth session, or
-- Create automated install scripts for a VPS.
+### Send a Command via CLI
+```bash
+curl -X POST https://your-server-url/api/exec \
+  -H "Authorization: Bearer your_secure_admin_token" \
+  -H "Content-Type: application/json" \
+  -d '{"client_id": "termux-main", "cmd": "ls /sdcard/Download"}'
+```
+
+### Integrated with Claude Code / Artifacts
+You can define a custom tool in your AI environment that hits the `/api/exec` endpoint. This allows Claude to:
+- Run `apt update` on your phone.
+- Read files from your Termux storage.
+- Trigger Android intents (if Termux-API is installed).
+
+## 🔒 Security
+- **HMAC Signing**: All commands are signed and verified via `CLIENT_KEY` to ensure they originated from your trusted server.
+- **JWT/Token Auth**: Admin endpoints are protected by a Bearer token.
+- **Rate Limiting**: Protection against brute-force attacks.
+
+## 📄 License
+MIT
