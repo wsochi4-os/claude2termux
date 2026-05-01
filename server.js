@@ -24,7 +24,14 @@ function loadClients(){ try { return JSON.parse(fs.readFileSync(CLIENTS_FILE)); 
 function saveClients(obj){ fs.writeFileSync(CLIENTS_FILE, JSON.stringify(obj, null, 2)); }
 
 const app = express();
-app.use(helmet());
+app.use(require('cors')({
+  origin: '*',
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-agent-secret']
+}));
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 app.use(express.json({limit: '2mb'}));
 app.use(morgan('combined', {stream: fs.createWriteStream(DATA_DIR + '/access.log', {flags:'a'})}));
 
