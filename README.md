@@ -80,3 +80,10 @@ Example minimal flow (quick)
 
 If anything is unclear or you want: a ready-made HTTPS shortcut for Claude, a tiny admin web UI, or a version of agent that uses jq for safer parsing — say which and I’ll add it.
 
+
+Additional ops
+- Systemd unit template: systemd/claude2termux.service (edit WorkingDirectory and /etc/claude2termux.env before enabling)
+- Cloudflare Tunnel guide: CLOUDFLARE_TUNNEL.md
+- Install global CLI: INSTALL_GLOBAL.md
+
+To commit these helper files and the service template:

@@ -1,0 +1,19 @@
+[Unit]
+Description=claude2termux server
+After=network.target
+
+[Service]
+# Create /etc/claude2termux.env with ADMIN_TOKEN, AGENT_SECRET, PORT and DATA_DIR
+# Example: ADMIN_TOKEN=..., AGENT_SECRET=..., PORT=8080, DATA_DIR=/var/lib/claude2termux
+EnvironmentFile=/etc/claude2termux.env
+# Set WorkingDirectory to the repo path where server.js lives
+WorkingDirectory=/path/to/claude2termux
+ExecStart=/usr/bin/node -r dotenv/config server.js
+Restart=on-failure
+RestartSec=5
+# Set to a non-root user you created on the VPS (recommended)
+User=www-data
+Group=www-data
+
+[Install]
+WantedBy=multi-user.target
