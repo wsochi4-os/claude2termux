@@ -1,119 +1,79 @@
-claude2termux — Simple bridge for Claude (Android) → Termux (HTTP long-poll)
+# claude2termux — Control Termux from Claude (Android)
 
-Plain English summary (ELI16)
-This project lets a cloud controller (like Claude's Android app) tell a Termux device to run shell commands. The Termux device polls the server for commands and posts back results. No Docker or special root access required on Termux — just curl and coreutils.
+A minimal, Termux-friendly bridge that lets a cloud controller (e.g., Claude Android app) send shell commands to Termux devices. Termux polls the server (long-poll), runs commands locally, and returns base64-encoded results.
 
-Overview
-- Server (public): Node.js app (server.js) that stores commands and results.
-- Agent (Termux): agent.sh — a tiny shell script that long-polls the server with curl, runs commands locally, and posts back base64-encoded outputs.
-- Security: uses shared secrets (ADMIN_TOKEN for admin API calls, AGENT_SECRET for agent authentication). Use HTTPS in production.
+Quick start (ELI16)
+1. Pick secrets and a host
+   - ADMIN_TOKEN (server admin) — keep secret
+   - AGENT_SECRET (agent auth) — keep secret
+   - Choose HOST (your VPS or a tunnel URL from Cloudflare Tunnel)
 
-Quick checklist before starting
-1) A public server or tunnel (example: a VPS, Cloudflare Tunnel)
-2) Node.js (v16+) on the server
-3) Termux on Android with curl and coreutils installed
-4) Pick two long random secrets: ADMIN_TOKEN and AGENT_SECRET
+2. On the server (VPS)
+   - Clone the repo and install: npm install
+   - Create a .env or export env vars:
+     ADMIN_TOKEN="<long-secret>"
+     AGENT_SECRET="<long-secret>"
+     PORT=8080
+   - Start server (foreground): ./claude2t start
+     or background: ./claude2t start-daemon
 
-Server — step-by-step (on your host)
-1. Clone or download the repo and cd into it.
-2. Install deps:
-   npm install
-3. Set environment variables (example):
-   export ADMIN_TOKEN="a-long-random-token"
-   export AGENT_SECRET="another-long-secret"
-   export PORT=8080   # optional
-4. Start the server:
-   node server.js
-5. Confirm server is reachable (replace HOST):
-   curl -H "Authorization: Bearer $ADMIN_TOKEN" -d '{"client_id":"test","cmd":"echo hi"}' -H "Content-Type: application/json" https://HOST/api/send
-   (you should get back an id)
-6. View connected clients and queued clients:
-   curl https://HOST/api/clients
+3. Register a per-client key (server-side)
+   - Create a per-device CLIENT_KEY (random string) and register it:
+     curl -X POST -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' \
+       -d '{"client_id":"termux-phone","key":"<CLIENT_KEY>"}' https://$HOST/api/client
 
-Termux device — step-by-step
-1. Install Termux and open a session.
-2. Install required packages:
-   pkg update -y
-   pkg install curl coreutils -y
-3. Edit agent.sh in the repo (or copy it to Termux) and set these env vars at top:
-   SERVER="https://YOUR_SERVER_OR_TUNNEL"
-   CLIENT_ID="termux-myphone"   # any unique id
-   AGENT_SECRET="the-same-agent-secret-you-set-on-server"
-4. Make it executable and run it in background:
-   chmod +x agent.sh
-   nohup ./agent.sh >/dev/null 2>&1 &
-   (Or use Termux:Boot or Termux:Widget to start on boot)
-5. Confirm polling: check server logs or GET /api/clients on server
+4. On Termux (your Android device)
+   - Install: pkg update && pkg install curl openssl coreutils -y
+   - Copy agent.sh to Termux and set env vars:
+     export SERVER="https://$HOST"
+     export CLIENT_ID="termux-phone"
+     export AGENT_SECRET="<AGENT_SECRET>"
+     export CLIENT_KEY="<CLIENT_KEY>"
+   - Run agent:
+     chmod +x agent.sh
+     ./agent.sh &
 
-How to send a command from Claude (or any HTTP client)
-- Endpoint: POST https://YOUR_SERVER/api/exec
-- Header: Authorization: Bearer YOUR_ADMIN_TOKEN
-- JSON body: {"client_id":"termux-myphone","cmd":"ls -la /data/data"}
-- Example curl (server-side test):
-  curl -s -H "Authorization: Bearer $ADMIN_TOKEN" -H 'Content-Type: application/json' -d '{"client_id":"termux-myphone","cmd":"ls -la"}' https://HOST/api/exec
-- Response structure:
-  { "id": "execid", "outputs": [ {"id":"execid","client_id":"termux-myphone","type":"output","stdout":"BASE64..."}, {"id":"execid","client_id":"termux-myphone","type":"exit","code":0} ] }
-- Decode outputs on your side (Base64):
-  echo "BASE64STRING" | base64 -d
+5. Send commands (from phone / Claude / web UI)
+   - Use the web UI: https://$HOST/ui (enter ADMIN_TOKEN)
+   - Or CURL / HTTP shortcut: POST https://$HOST/api/exec
+     Headers: Authorization: Bearer <ADMIN_TOKEN>
+     Body: {"client_id":"termux-phone","cmd":"ls -la"}
 
-Notes for using Claude Android app
-- Claude itself cannot natively run curl; but you can:
-  - Use Claude to compose the JSON body and then use an HTTP shortcut app (e.g., Termux:Tasker, HTTP Shortcuts) to POST it.
-  - Or use a web UI / simple HTTP client that you can call from Claude (if Claude supports webhooks) to forward the request.
-- Keep the ADMIN_TOKEN secret. Do not paste it into public chats.
+6. Read outputs
+   - Server returns id and outputs array with base64 stdout/stderr. Decode with:
+     echo "BASE64" | base64 -d
 
-Troubleshooting
-- If agent never appears: ensure SERVER is reachable from Android and AGENT_SECRET matches.
-- If /api/exec times out: check agent output and server logs; ensure agent posted result to /api/result.
-- If outputs are unreadable: remember agent.sh base64-encodes stdout; decode with base64 -d.
-
-Security recommendations (short)
-- Use HTTPS (obvious). Use Cloudflare Tunnel or a proper TLS cert.
-- Rotate ADMIN_TOKEN/AGENT_SECRET regularly.
-- Limit server to allowlist IPs where possible; add rate-limiting if you expose publicly.
-
-Example minimal flow (quick)
-1. Start server on HOST with ADMIN_TOKEN/AGENT_SECRET.
-2. Start agent on Termux with same AGENT_SECRET and CLIENT_ID.
-3. From controller: POST /api/exec with Authorization header and {client_id, cmd}.
-4. Server returns outputs (base64 stdout). Decode locally to read command result.
-
-If anything is unclear or you want: a ready-made HTTPS shortcut for Claude, a tiny admin web UI, or a version of agent that uses jq for safer parsing — say which and I’ll add it.
-
-
-Additional ops
-- Systemd unit template: systemd/claude2termux.service (edit WorkingDirectory and /etc/claude2termux.env before enabling)
-- Cloudflare Tunnel guide: CLOUDFLARE_TUNNEL.md
-- Install global CLI: INSTALL_GLOBAL.md
-
-To commit these helper files and the service template:
-
-Cloudflare Tunnel — step-by-step (persistent hostname)
-
-1) Install cloudflared on your server: follow Cloudflare docs for your OS.
-2) Authenticate interactively (one-time):
-   cloudflared login
-   - This opens a browser to authorize your Cloudflare account and creates cert.pem in ~/.cloudflared.
-3) Create a named tunnel:
-   cloudflared tunnel create <TUNNEL_NAME>
-   - Note the tunnel ID printed; keep the credentials JSON (it is stored in ~/.cloudflared).
-4) Create a config file: copy the template at .cloudflared/config.yml and set:
-   - Replace <TUNNEL_NAME> or <TUNNEL_ID_OR_NAME> with the tunnel name/ID
-   - Replace <HOSTNAME> with the domain you control (e.g., claude.example.com)
-5) Route DNS for the tunnel:
-   cloudflared tunnel route dns <TUNNEL_NAME> <HOSTNAME>
-6) Test by running:
-   cloudflared tunnel run <TUNNEL_NAME> --config /root/.cloudflared/config.yml
-7) To run persistently, enable systemd (edit systemd/cloudflared.service first):
-   sudo cp systemd/cloudflared.service /etc/systemd/system/cloudflared.service
-   sudo systemctl daemon-reload
-   sudo systemctl enable --now cloudflared
-
-Ephemeral quick test (no account required):
-- Run:
+Cloudflare Tunnel (quick)
+- Quick ephemeral (no account): run:
   cloudflared tunnel --url http://localhost:8080
-- That prints a temporary https://*.trycloudflare.com URL you can use immediately.
+  — you get a https://*.trycloudflare.com URL immediately.
 
-Security note:
-- Use a short allowlist or firewall rules where possible. Keep Cloudflare credentials and config files private (chmod 600).
+- Persistent hostname (recommended):
+  1) cloudflared login
+  2) cloudflared tunnel create <NAME>
+  3) cloudflared tunnel route dns <NAME> <HOSTNAME>
+  4) Use .cloudflared/config.yml and systemd/cloudflared.service to run persistently (see repo files)
 
+Security notes
+- Use HTTPS (Cloudflare Tunnel or TLS certs).
+- ADMIN_TOKEN and AGENT_SECRET must be strong and kept secret.
+- Register per-client CLIENT_KEY and keep it on the device only.
+- Review logs (data/) and rotate keys regularly.
+
+Troubleshooting (quick)
+- Agent not connecting: verify SERVER URL, AGENT_SECRET, and network.
+- /api/exec times out: check agent logs and server data/results.log.
+- Outputs unreadable: decode base64.
+
+Files of interest
+- server.js — server implementation
+- agent.sh — Termux agent (HMAC verify)
+- public/ — web UI (visit /ui)
+- claude2t — start/stop helper
+- systemd/claude2termux.service — systemd template
+- .cloudflared/config.yml & systemd/cloudflared.service — cloudflared templates
+
+If you want, I can:
+- Populate cloudflared config with your hostname, or
+- Add a small admin UI auth session, or
+- Create automated install scripts for a VPS.
