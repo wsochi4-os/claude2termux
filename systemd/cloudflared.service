@@ -1,0 +1,13 @@
+[Unit]
+Description=cloudflared tunnel
+After=network.target
+
+[Service]
+User=root
+Environment=HOME=/root
+ExecStart=/usr/local/bin/cloudflared tunnel run <TUNNEL_NAME> --config /root/.cloudflared/config.yml
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

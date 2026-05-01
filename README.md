@@ -87,3 +87,33 @@ Additional ops
 - Install global CLI: INSTALL_GLOBAL.md
 
 To commit these helper files and the service template:
+
+Cloudflare Tunnel — step-by-step (persistent hostname)
+
+1) Install cloudflared on your server: follow Cloudflare docs for your OS.
+2) Authenticate interactively (one-time):
+   cloudflared login
+   - This opens a browser to authorize your Cloudflare account and creates cert.pem in ~/.cloudflared.
+3) Create a named tunnel:
+   cloudflared tunnel create <TUNNEL_NAME>
+   - Note the tunnel ID printed; keep the credentials JSON (it is stored in ~/.cloudflared).
+4) Create a config file: copy the template at .cloudflared/config.yml and set:
+   - Replace <TUNNEL_NAME> or <TUNNEL_ID_OR_NAME> with the tunnel name/ID
+   - Replace <HOSTNAME> with the domain you control (e.g., claude.example.com)
+5) Route DNS for the tunnel:
+   cloudflared tunnel route dns <TUNNEL_NAME> <HOSTNAME>
+6) Test by running:
+   cloudflared tunnel run <TUNNEL_NAME> --config /root/.cloudflared/config.yml
+7) To run persistently, enable systemd (edit systemd/cloudflared.service first):
+   sudo cp systemd/cloudflared.service /etc/systemd/system/cloudflared.service
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now cloudflared
+
+Ephemeral quick test (no account required):
+- Run:
+  cloudflared tunnel --url http://localhost:8080
+- That prints a temporary https://*.trycloudflare.com URL you can use immediately.
+
+Security note:
+- Use a short allowlist or firewall rules where possible. Keep Cloudflare credentials and config files private (chmod 600).
+
