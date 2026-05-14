@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Claude2Termux Project Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; margin: 20px; background-color: #f4f4f4; color: #333; }
+        .container { max-width: 900px; margin: auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1, h2 { color: #0056b3; }
+        .task-status { margin-bottom: 15px; padding: 10px; border-left: 5px solid #ccc; }
+        .task-status.completed { border-color: #28a745; background-color: #e6ffe6; }
+        .task-status.in-progress { border-color: #ffc107; background-color: #fff8e6; }
+        .task-status.pending { border-color: #17a2b8; background-color: #e0f7fa; }
+        .task-status h3 { margin-top: 0; }
+        ul { list-style-type: none; padding: 0; }
+        li { margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Claude2Termux Project Dashboard</h1>
+        <p>Overview of the project progress for the <code>claude2termux</code> enhancements.</p>
+
+        <h2>Overall Status: <span style="color:#28a745;">Completed</span></h2>
+
+        <div class="task-status completed">
+            <h3>Task 1: Code Audit & Bug Fixing</h3>
+            <ul>
+                <li>Status: Completed</li>
+                <li>Details: Implemented HMAC verification in Python agent, improved Bash agent JSON parsing, fixed server-side stderr decoding and timeout messages.</li>
+            </ul>
+        </div>
+
+        <div class="task-status completed">
+            <h3>Task 2: Implement Command Timeout & Sanitization</h3>
+            <ul>
+                <li>Status: Completed</li>
+                <li>Details: Added execution timeouts to both Python and Bash agents to prevent indefinite hangs.</li>
+            </ul>
+        </div>
+
+        <div class="task-status completed">
+            <h3>Task 3: Add Termux:API Native Hooks</h3>
+            <ul>
+                <li>Status: Completed</li>
+                <li>Details: Created a sanitized wrapper for Termux:API functions and exposed them as a tool for the chat agent.</li>
+            </ul>
+        </div>
+
+        <div class="task-status completed">
+            <h3>Task 4: Migrate to WebSockets</h3>
+            <ul>
+                <li>Status: Completed</li>
+                <li>Details: Replaced HTTP polling with persistent WebSocket connections in the Python agent, including robust reconnection logic.</li>
+            </ul>
+        </div>
+
+        <div class="task-status completed">
+            <h3>Documentation Update</h3>
+            <ul>
+                <li>Status: Completed</li>
+                <li>Details: Updated <code>README.md</code> with new features, installation instructions, and usage examples.</li>
+            </ul>
+        </div>
+
+        <p>All primary objectives and feature enhancements have been successfully implemented and documented.</p>
+    </div>
+</body>
+</html>

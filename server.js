@@ -146,19 +146,41 @@ app.post('/api/chat', adminLimiter, async (req, res) => {
 
   const anthropic = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
 
-  const tools = [{
-    name: 'run_command',
-    description:
-      'Execute a shell command on the connected Termux Android device and return the output. ' +
-      'Use this to inspect files, run scripts, check system state, install packages, etc.',
-    input_schema: {
-      type: 'object',
-      properties: {
-        cmd: { type: 'string', description: 'The shell command to run (executed via sh -c)' }
-      },
-      required: ['cmd']
+  const tools = [
+    {
+      name: 'run_command',
+      description:
+        'Execute a shell command on the connected Termux Android device and return the output. ' +
+        'Use this to inspect files, run scripts, check system state, install packages, etc.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          cmd: { type: 'string', description: 'The shell command to run (executed via sh -c)' }
+        },
+        required: ['cmd']
+      }
+    },
+    {
+      name: 'termux_api',
+      description: 'Interact with Android device features via Termux:API.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          command: { 
+            type: 'string', 
+            enum: ['clipboard-get', 'clipboard-set', 'battery-status', 'vibrate', 'notification', 'location'],
+            description: 'The Termux:API feature to use' 
+          },
+          args: { 
+            type: 'array', 
+            items: { type: 'string' },
+            description: 'Arguments for the command (e.g., text for clipboard-set, title/content for notification)'
+          }
+        },
+        required: ['command']
+      }
     }
-  }];
+  ];
 
   const systemPrompt =
     `You are a helpful assistant with direct shell access to an Android device running Termux ` +
@@ -191,16 +213,23 @@ app.post('/api/chat', adminLimiter, async (req, res) => {
 
       if (apiResponse.stop_reason === 'tool_use') {
         const toolResults = [];
-
         for (const block of apiResponse.content) {
-          if (block.type !== 'tool_use' || block.name !== 'run_command') continue;
+          if (block.type !== 'tool_use') continue;
 
-          const cmd = block.input.cmd;
-          console.log(`[chat] run_command: ${cmd}`);
+          let cmd = '';
+          if (block.name === 'run_command') {
+            cmd = block.input.cmd;
+          } else if (block.name === 'termux_api') {
+            const apiCmd = block.input.command;
+            const args = (block.input.args || []).map(a => `"${a.replace(/"/g, '\\"')}"`).join(' ');
+            cmd = `./termux_api_wrapper.sh ${apiCmd} ${args}`;
+          } else {
+            continue;
+          }
 
-          const execId = enqueueCommand(client_id, cmd, { by: 'chat-agent' });
+          console.log(`[chat] tool: ${block.name} -> ${cmd}`);
+          const execId = enqueueCommand(client_id, cmd, { by: 'chat-agent', tool: block.name });
           results.set(execId, []);
-
           const output = await waitForResult(execId, 30000);
 
           toolResults.push({
@@ -209,6 +238,7 @@ app.post('/api/chat', adminLimiter, async (req, res) => {
             content: `exit_code: ${output.code}\n${output.text}`
           });
         }
+
 
         messages.push({ role: 'user', content: toolResults });
       } else {
@@ -247,15 +277,31 @@ function waitForResult(execId, timeoutMs) {
         clearInterval(timer);
         let text = '';
         for (const c of chunks) {
-          if (c.stdout) { try { text += Buffer.from(c.stdout, 'base64').toString('utf8'); } catch { text += c.stdout; } }
-          if (c.stderr) { try { text += Buffer.from(c.stderr, 'base64').toString('utf8'); } catch { text += c.stderr; } }
+          if (c.stdout) {
+            try {
+              if (/^[A-Za-z0-9+/=]+$/.test(c.stdout)) {
+                text += Buffer.from(c.stdout, 'base64').toString('utf8');
+              } else {
+                text += c.stdout;
+              }
+            } catch { text += c.stdout; }
+          }
+          if (c.stderr) {
+            try {
+              if (/^[A-Za-z0-9+/=]+$/.test(c.stderr)) {
+                text += Buffer.from(c.stderr, 'base64').toString('utf8');
+              } else {
+                text += c.stderr;
+              }
+            } catch { text += c.stderr; }
+          }
         }
         resolve({ text: text.trim() || '(no output)', code: exitChunk.code ?? 0 });
         return;
       }
       if (Date.now() - start > timeoutMs) {
         clearInterval(timer);
-        resolve({ text: '(command timed out after 30s)', code: -1 });
+        resolve({ text: `(command timed out after ${Math.round(timeoutMs/1000)}s)`, code: -1 });
       }
     }, 200);
   });
