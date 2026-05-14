@@ -301,7 +301,13 @@ function waitForResult(execId, timeoutMs) {
       }
       if (Date.now() - start > timeoutMs) {
         clearInterval(timer);
-        resolve({ text: `(command timed out after ${Math.round(timeoutMs/1000)}s)`, code: -1 });
+        const chunks = results.get(execId) || [];
+        let text = `(command timed out after ${Math.round(timeoutMs/1000)}s)`;
+        for (const c of chunks) {
+          if (c.stdout) { try { text += "\n" + Buffer.from(c.stdout, 'base64').toString('utf8'); } catch { text += "\n" + c.stdout; } }
+          if (c.stderr) { try { text += "\n" + Buffer.from(c.stderr, 'base64').toString('utf8'); } catch { text += "\n" + c.stderr; } }
+        }
+        resolve({ text: text.trim(), code: -1 });
       }
     }, 200);
   });

@@ -62,6 +62,13 @@ async def run():
                                         await ws.send(json.dumps({'type':'output','id':exec_id, stream_type: encoded}))
                                 except Exception as e:
                                     print(f"Stream read error: {e}")
+                                finally:
+                                    # Ensure we don't leave pipes hanging
+                                    try:
+                                        if hasattr(stream, 'close'):
+                                            stream.close()
+                                    except:
+                                        pass
 
                             try:
                                 # Wait for process with timeout

@@ -1,0 +1,6 @@
+{"time":"2026-05-14T16:04:13.283Z","clientId":"test-client","execId":"11993268c06600ce","cmdPreview":"echo 'HMAC Valid'","meta":{"by":"admin"}}
+{"time":"2026-05-14T16:04:16.493Z","clientId":"test-client","execId":"fb7cac7392fed7aa","cmdPreview":"echo 'Should not see this'","meta":{"by":"admin"}}
+{"time":"2026-05-14T16:04:23.511Z","clientId":"test-client","execId":"a2db177868af4018","cmdPreview":"sleep 10","meta":{"by":"admin"}}
+{"time":"2026-05-14T16:04:37.195Z","clientId":"test-client","execId":"776ebdcecbf37b38","cmdPreview":"echo 'HMAC Valid'","meta":{"by":"admin"}}
+{"time":"2026-05-14T16:04:40.403Z","clientId":"test-client","execId":"27c370fcb3f1aa16","cmdPreview":"echo 'Should not see this'","meta":{"by":"admin"}}
+{"time":"2026-05-14T16:04:47.420Z","clientId":"test-client","execId":"673be66aa3bb8d27","cmdPreview":"sleep 10","meta":{"by":"admin"}}
